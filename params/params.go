@@ -110,7 +110,7 @@ type Address struct {
 	Type    AddressType `json:"type"`
 }
 
-type Instance struct {
+type ProviderInstance struct {
 	// PeoviderID is the unique ID the provider associated
 	// with the compute instance. We use this to identify the
 	// instance in the provider.
