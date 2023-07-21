@@ -13,6 +13,13 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
+const (
+	// ExitCodeNotFound is an exit code that indicates a Not Found error
+	ExitCodeNotFound int = 30
+	// ExitCodeDuplicate is an exit code that indicates a duplicate error
+	ExitCodeDuplicate int = 31
+)
+
 func GetEnvironment() (Environment, error) {
 	env := Environment{
 		Command:            ExecutionCommand(os.Getenv("GARM_COMMAND")),
