@@ -85,6 +85,7 @@ func GetRunnerInstallScript(bootstrapParams commonParams.BootstrapInstance, tool
 		CallbackToken:     bootstrapParams.InstanceToken,
 		GitHubRunnerGroup: bootstrapParams.GitHubRunnerGroup,
 		ExtraContext:      extraSpecs.ExtraContext,
+		EnableBootDebug:   bootstrapParams.UserDataOptions.EnableBootDebug,
 	}
 
 	if bootstrapParams.CACertBundle != nil && len(bootstrapParams.CACertBundle) > 0 {
