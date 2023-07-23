@@ -28,6 +28,10 @@ var CloudConfigTemplate = `#!/bin/bash
 set -e
 set -o pipefail
 
+{{- if .EnableBootDebug }}
+set -x
+{{- end }}
+
 CALLBACK_URL="{{ .CallbackURL }}"
 METADATA_URL="{{ .MetadataURL }}"
 BEARER_TOKEN="{{ .CallbackToken }}"
@@ -424,17 +428,20 @@ type InstallRunnerParams struct {
 	TempDownloadToken string
 	CABundle          string
 	GitHubRunnerGroup string
+	EnableBootDebug   bool
+	ExtraContext      map[string]string
 }
 
-func InstallRunnerScript(installParams InstallRunnerParams, osType params.OSType) ([]byte, error) {
-	var tpl string
-	switch osType {
-	case params.Linux:
-		tpl = CloudConfigTemplate
-	case params.Windows:
-		tpl = WindowsSetupScriptTemplate
-	default:
-		return nil, fmt.Errorf("unsupported os type: %s", osType)
+func InstallRunnerScript(installParams InstallRunnerParams, osType params.OSType, tpl string) ([]byte, error) {
+	if tpl == "" {
+		switch osType {
+		case params.Linux:
+			tpl = CloudConfigTemplate
+		case params.Windows:
+			tpl = WindowsSetupScriptTemplate
+		default:
+			return nil, fmt.Errorf("unsupported os type: %s", osType)
+		}
 	}
 
 	t, err := template.New("").Parse(tpl)
