@@ -38,6 +38,16 @@ func TestAes256EncodeDecode(t *testing.T) {
 	require.Equal(t, []byte("test"), decrypted)
 }
 
+func TestAes256EncodeDecodeWeakSecret(t *testing.T) {
+	_, err := Aes256Encode([]byte("test"), WeakEncryptionPassphrase)
+	require.NotNil(t, err)
+	require.EqualError(t, err, "invalid passphrase length (expected length 32 characters)")
+
+	_, err = Aes256Decode([]byte("test"), WeakEncryptionPassphrase)
+	require.NotNil(t, err)
+	require.EqualError(t, err, "invalid passphrase length (expected length 32 characters)")
+}
+
 func TestUnsealAes256EncodedData(t *testing.T) {
 	encrypted, err := Aes256Encode([]byte("test"), EncryptionPassphrase)
 	require.NoError(t, err)
@@ -53,8 +63,39 @@ func TestSealUnsealWeakSecret(t *testing.T) {
 	require.NotNil(t, err)
 	require.EqualError(t, err, "invalid passphrase length (expected length 32 characters)")
 
-	// The data is irelevant. We expect to error out on the passphrase length.
+	// The data is irrelevant. We expect to error out on the passphrase length.
 	_, err = Unseal([]byte("test"), []byte(WeakEncryptionPassphrase))
 	require.NotNil(t, err)
 	require.EqualError(t, err, "invalid passphrase length (expected length 32 characters)")
+}
+
+func TestAes256EncodeDecodeString(t *testing.T) {
+	encrypted, err := Aes256EncodeString("test", EncryptionPassphrase)
+	require.NoError(t, err)
+
+	decrypted, err := Aes256DecodeString(encrypted, EncryptionPassphrase)
+	require.NoError(t, err)
+	require.Equal(t, "test", decrypted)
+}
+
+func TestAes256EncodeStringWeakSecret(t *testing.T) {
+	_, err := Aes256EncodeString("test", WeakEncryptionPassphrase)
+	require.NotNil(t, err)
+	require.EqualError(t, err, "invalid passphrase length (expected length 32 characters)")
+}
+
+func TestAes256DecodeWrongEncryptedString(t *testing.T) {
+	_, err := Aes256DecodeString([]byte(""), EncryptionPassphrase)
+	require.NotNil(t, err)
+	require.EqualError(t, err, "failed to decrypt text")
+}
+
+func TestAes256DecodeWrongDecryptionPassphrase(t *testing.T) {
+	encrypted, err := Aes256EncodeString("test", EncryptionPassphrase)
+	require.NoError(t, err)
+
+	// We pass a wrong decryption passphrase, that it's still 32 characters long.
+	_, err = Aes256DecodeString(encrypted, "wrong passphrase-1234-1234-12345")
+	require.NotNil(t, err)
+	require.EqualError(t, err, "failed to decrypt text")
 }
