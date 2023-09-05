@@ -125,3 +125,23 @@ func TestGetLoggingWriterFailedToCreateLogFolder(t *testing.T) {
 	require.Error(t, err)
 	require.EqualError(t, err, "failed to create log folder")
 }
+
+func TestGetLoggingWriterPermisionDenied(t *testing.T) {
+	// Create a temporary directory for testing
+	dir, err := os.MkdirTemp("", "test-dir")
+	if err != nil {
+		t.Fatalf("failed to create temporary directory: %s", err)
+	}
+	// Remove the temporary directory when the test finishes.
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	// Remove execute permission from the temporary directory
+	err = os.Chmod(dir, 0644)
+	if err != nil {
+		t.Fatalf("failed to remove execute permission from temporary directory: %s", err)
+	}
+
+	_, err = GetLoggingWriter(path.Join(dir, "non-existing-folder", "test.log"))
+	require.Error(t, err)
+	require.EqualError(t, err, "failed to create log folder")
+}
