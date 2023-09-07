@@ -1,12 +1,17 @@
 package util
 
 import (
+	"bytes"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
 
 	runnerErrors "github.com/cloudbase/garm-provider-common/errors"
 	"github.com/cloudbase/garm-provider-common/params"
+	"github.com/google/go-github/v54/github"
 	"github.com/stretchr/testify/require"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
@@ -144,4 +149,176 @@ func TestGetLoggingWriterPermisionDenied(t *testing.T) {
 	_, err = GetLoggingWriter(path.Join(dir, "non-existing-folder", "test.log"))
 	require.Error(t, err)
 	require.EqualError(t, err, "failed to create log folder")
+}
+
+func TestConvertFileToBase64(t *testing.T) {
+	// Create a temporary file with some test data to be converted to base64.
+	err := os.WriteFile("file.txt", []byte("test"), 0o644)
+	if err != nil {
+		t.Fatalf("failed to create temporary file: %s", err)
+	}
+	// Remove the temporary file when the test finishes.
+	defer os.Remove("file.txt")
+
+	base64Data, err := ConvertFileToBase64("file.txt")
+	require.NoError(t, err)
+	require.Equal(t, "dGVzdA==", base64Data)
+}
+
+func TestConvertFileToBase64FileNotFound(t *testing.T) {
+	_, err := ConvertFileToBase64("")
+	require.Error(t, err)
+	require.EqualError(t, err, "reading file: open : no such file or directory")
+}
+
+func TestOSToOSType(t *testing.T) {
+	osType, err := OSToOSType("windows")
+	require.NoError(t, err)
+	require.Equal(t, params.Windows, osType)
+}
+
+func TestOSToOSTypeUnknown(t *testing.T) {
+	os := "some-unknown-os"
+
+	osType, err := OSToOSType(os)
+	require.Error(t, err)
+	require.Equal(t, params.Unknown, osType)
+	require.EqualError(t, err, fmt.Sprintf("no OS to OS type mapping for %s", os))
+}
+
+func TestGetTools(t *testing.T) {
+	ghArch, err := ResolveToGithubArch("amd64")
+	if err != nil {
+		t.Fatalf("failed to resolve to github arch: %s", err)
+	}
+
+	ghOS, err := ResolveToGithubOSType("linux")
+	if err != nil {
+		t.Fatalf("failed to resolve to github os type: %s", err)
+	}
+
+	tools := []*github.RunnerApplicationDownload{
+		{
+			OS:           github.String(ghOS),
+			Architecture: github.String(ghArch),
+		},
+	}
+
+	ghTools, err := GetTools("linux", "amd64", tools)
+	require.NoError(t, err)
+	require.Equal(t, "linux", *ghTools.OS)
+	require.Equal(t, "x64", *ghTools.Architecture)
+}
+
+func TestGetToolsUnsupportedOSType(t *testing.T) {
+	osType := params.OSType("some-unknown-os")
+
+	_, err := GetTools(osType, "amd64", nil)
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("unsupported OS type: %s", osType))
+}
+
+func TestGetToolsUnsupportedOSArch(t *testing.T) {
+	osArch := params.OSArch("some-unknown-arch")
+
+	_, err := GetTools("linux", osArch, nil)
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("unsupported OS arch: %s", osArch))
+}
+
+func TestGetToolsFailed(t *testing.T) {
+	osType := params.OSType("linux")
+	osArch := params.OSArch("amd64")
+
+	_, err := GetTools(osType, osArch, nil)
+	require.Error(t, err)
+	require.EqualError(t, err, fmt.Sprintf("failed to find tools for OS %s and arch %s", osType, osArch))
+}
+
+func TestGetRandomString(t *testing.T) {
+	randomString, err := GetRandomString(10)
+	require.NoError(t, err)
+	require.Equal(t, 10, len(randomString))
+}
+
+func TestPaswsordToBcrypt(t *testing.T) {
+	hash, err := PaswsordToBcrypt("random-password")
+	require.NoError(t, err)
+	require.Equal(t, 60, len(hash))
+}
+
+func TestPaswsordToBcryptFailed(t *testing.T) {
+	// We define a long password that exceeds the maximum allowed length for bcrypt
+	password := "we-pass-a-password-that-is-more-than-72-bytes-long-which-is-the-maximum-allowed"
+
+	hash, err := PaswsordToBcrypt(password)
+	require.Error(t, err)
+	require.Equal(t, "", hash)
+	require.EqualError(t, err, "failed to hash password")
+}
+
+func TestNewLoggingMiddleware(t *testing.T) {
+	// Create a buffer to capture log output
+	var buf bytes.Buffer
+
+	// Create a test handler
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Create a new logging middleware using the test buffer
+	loggingMiddleware := NewLoggingMiddleware(&buf)
+
+	// Create a test request and response recorder
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	// Serve the request through the logging middleware
+	loggingMiddleware(testHandler).ServeHTTP(w, req)
+
+	// Assert that the request was served successfully and the log output
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, buf.String(), "GET / HTTP/1.1")
+}
+
+func TestSanitizeLogEntry(t *testing.T) {
+	sanitizedEntry := SanitizeLogEntry("test\n")
+	require.Equal(t, "test", sanitizedEntry)
+}
+
+func TestNewID(t *testing.T) {
+	// Create a new ID
+	id := NewID()
+
+	// Assert that the ID is 12 characters long and is alphanumeric
+	require.Equal(t, 12, len(id))
+	require.True(t, IsAlphanumeric(id))
+}
+
+func TestUTF16FromString(t *testing.T) {
+	utf16String, err := UTF16FromString("test")
+	require.NoError(t, err)
+	require.Equal(t, []uint16{116, 101, 115, 116, 0}, utf16String)
+}
+
+func TestUTF16ToString(t *testing.T) {
+	string := UTF16ToString([]uint16{116, 101, 115, 116, 0})
+	require.Equal(t, "test", string)
+}
+
+func TestUint16ToByteArray(t *testing.T) {
+	byteArray := Uint16ToByteArray([]uint16{116, 101, 115, 116, 0, 0})
+	require.Equal(t, []byte{116, 0, 101, 0, 115, 0, 116, 0, 0, 0}, byteArray)
+}
+
+func TestUTF16EncodedByteArrayFromString(t *testing.T) {
+	utf16EncodedByteArray, err := UTF16EncodedByteArrayFromString("test")
+	require.NoError(t, err)
+	require.Equal(t, []byte{116, 0, 101, 0, 115, 0, 116, 0}, utf16EncodedByteArray)
+}
+
+func TestCompressData(t *testing.T) {
+	compressedData, err := CompressData([]byte("test"))
+	require.NoError(t, err)
+	require.Equal(t, []byte{31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 42, 73, 45, 46, 1, 0, 0, 0, 255, 255, 1, 0, 0, 255, 255, 12, 126, 127, 216, 4, 0, 0, 0}, compressedData)
 }
