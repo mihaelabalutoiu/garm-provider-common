@@ -3,7 +3,6 @@ module github.com/cloudbase/garm-provider-common
 go 1.20
 
 require (
-	github.com/google/go-github/v55 v55.0.1-0.20230921135834-aa3fcbe7aabc
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/mattn/go-isatty v0.0.19
@@ -20,6 +19,5 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 )

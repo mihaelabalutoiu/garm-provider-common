@@ -16,8 +16,6 @@ package params
 
 import (
 	"encoding/json"
-
-	"github.com/google/go-github/v55/github"
 )
 
 type (
@@ -63,8 +61,8 @@ type UserDataOptions struct {
 }
 
 type BootstrapInstance struct {
-	Name  string                              `json:"name"`
-	Tools []*github.RunnerApplicationDownload `json:"tools"`
+	Name  string                      `json:"name"`
+	Tools []RunnerApplicationDownload `json:"tools"`
 	// RepoURL is the URL the github runner agent needs to configure itself.
 	RepoURL string `json:"repo_url"`
 	// CallbackUrl is the URL where the instance can send a post, signaling
