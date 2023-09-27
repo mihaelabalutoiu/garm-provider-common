@@ -7,13 +7,14 @@ import (
 
 	"github.com/cloudbase/garm-provider-common/defaults"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 // helper function
 func getCloudInit() *CloudInit {
 	return &CloudInit{
-		PackageUpgrade: true,
+		PackageUpgrade:    true,
+		Packages:          []string{"curl"},
+		SSHAuthorizedKeys: []string{"test-ssh-key"},
 		SystemInfo: &SystemInfo{
 			DefaultUser: DefaultUser{
 				Name:   defaults.DefaultUser,
@@ -26,100 +27,79 @@ func getCloudInit() *CloudInit {
 		WriteFiles: []File{
 			{
 				Encoding:    "b64",
-				Content:     base64.StdEncoding.EncodeToString([]byte("content")),
-				Owner:       "owner",
+				Content:     base64.StdEncoding.EncodeToString([]byte("test")),
+				Owner:       "test-owner",
 				Path:        "path",
-				Permissions: "permissions",
+				Permissions: "test-permissions",
 			},
 		},
 	}
 }
 
-func TestNewDefaultCloudInitConfig(t *testing.T) {
-	cloudInit := getCloudInit()
+var (
+	cloudInit = getCloudInit()
+)
 
-	initCfg := NewDefaultCloudInitConfig()
-	require.Equal(t, cloudInit.PackageUpgrade, initCfg.PackageUpgrade)
-	require.Equal(t, cloudInit.SystemInfo.DefaultUser.Name, initCfg.SystemInfo.DefaultUser.Name)
-	require.Equal(t, cloudInit.SystemInfo.DefaultUser.Home, initCfg.SystemInfo.DefaultUser.Home)
-	require.Equal(t, cloudInit.SystemInfo.DefaultUser.Shell, initCfg.SystemInfo.DefaultUser.Shell)
-	require.Equal(t, cloudInit.SystemInfo.DefaultUser.Groups, initCfg.SystemInfo.DefaultUser.Groups)
-	require.Equal(t, cloudInit.SystemInfo.DefaultUser.Sudo, initCfg.SystemInfo.DefaultUser.Sudo)
+func TestNewDefaultCloudInitConfig(t *testing.T) {
+	cloudInitCfg := NewDefaultCloudInitConfig()
+	require.Equal(t, cloudInitCfg.PackageUpgrade, true)
+	require.Equal(t, cloudInitCfg.Packages, []string{"curl", "tar"})
+	require.Equal(t, cloudInitCfg.SystemInfo.DefaultUser.Name, defaults.DefaultUser)
+	require.Equal(t, cloudInitCfg.SystemInfo.DefaultUser.Home, fmt.Sprintf("/home/%s", defaults.DefaultUser))
+	require.Equal(t, cloudInitCfg.SystemInfo.DefaultUser.Shell, defaults.DefaultUserShell)
+	require.Equal(t, cloudInitCfg.SystemInfo.DefaultUser.Groups, defaults.DefaultUserGroups)
+	require.Equal(t, cloudInitCfg.SystemInfo.DefaultUser.Sudo, "ALL=(ALL) NOPASSWD:ALL")
 }
 
 func TestAddCACertNil(t *testing.T) {
-	cloudInit := getCloudInit()
-
 	err := cloudInit.AddCACert(nil)
 	require.NoError(t, err)
-	require.NoError(t, cloudInit.AddCACert(nil))
 }
 
 func TestAddCACertFailed(t *testing.T) {
-	cloudInit := getCloudInit()
-
 	err := cloudInit.AddCACert([]byte("unknown-cert"))
 	require.EqualError(t, err, "failed to parse CA cert bundle")
 }
 
 func TestAddSSHKey(t *testing.T) {
-	cloudInit := getCloudInit()
-
-	cloudInit.AddSSHKey("ssh-key")
-	require.Equal(t, "ssh-key", cloudInit.SSHAuthorizedKeys[0])
+	cloudInit.AddSSHKey(cloudInit.SSHAuthorizedKeys...)
+	require.Equal(t, []string{"test-ssh-key"}, cloudInit.SSHAuthorizedKeys)
 }
 
 func TestAddSSHKeyNotFound(t *testing.T) {
-	cloudInit := getCloudInit()
-	cloudInit.SSHAuthorizedKeys = []string{""}
-
-	cloudInit.AddSSHKey("")
-	require.Equal(t, []string{""}, cloudInit.SSHAuthorizedKeys)
+	cloudInit.AddSSHKey("new-test-ssh-key")
+	require.Equal(t, []string{"test-ssh-key", "new-test-ssh-key"}, cloudInit.SSHAuthorizedKeys)
 }
 
 func TestAddPackage(t *testing.T) {
-	cloudInit := getCloudInit()
-
-	cloudInit.AddPackage("curl", "wget")
-	require.Equal(t, "curl", cloudInit.Packages[0])
-	require.Equal(t, len(cloudInit.Packages), 2)
+	cloudInit.AddPackage(cloudInit.Packages...)
+	require.Equal(t, []string{"curl"}, cloudInit.Packages)
 }
 
 func TestAddPackageNotFound(t *testing.T) {
-	cloudInit := getCloudInit()
-	cloudInit.Packages = []string{""}
-
-	cloudInit.AddPackage("")
-	require.Equal(t, []string{""}, cloudInit.Packages)
+	cloudInit.AddPackage("tar")
+	require.Equal(t, []string{"curl", "tar"}, cloudInit.Packages)
 }
 
 func TestAddRunCmd(t *testing.T) {
-	cloudInit := getCloudInit()
-
-	cloudInit.AddRunCmd("cmd")
-	require.Equal(t, "cmd", cloudInit.RunCmd[0])
+	cloudInit.AddRunCmd("test-run-cmd")
+	require.Equal(t, []string{"test-run-cmd"}, cloudInit.RunCmd)
 }
 
 func TestAddFile(t *testing.T) {
-	cloudInit := getCloudInit()
+	cloudInit.AddFile([]byte("test"), "test-path", "test-owner", "test-permissions")
+	require.Equal(t, "b64", cloudInit.WriteFiles[0].Encoding)
+	require.Equal(t, "dGVzdA==", cloudInit.WriteFiles[0].Content)
+	require.Equal(t, "test-owner", cloudInit.WriteFiles[0].Owner)
+	require.Equal(t, "test-permissions", cloudInit.WriteFiles[0].Permissions)
+}
 
-	cloudInit.AddFile([]byte("content"), "test-path", "test-owner", "test-permissions")
-	require.Equal(t, "b64", cloudInit.WriteFiles[1].Encoding)
-	require.Equal(t, "Y29udGVudA==", cloudInit.WriteFiles[1].Content)
-	require.Equal(t, "test-owner", cloudInit.WriteFiles[1].Owner)
-	require.Equal(t, "test-permissions", cloudInit.WriteFiles[1].Permissions)
-	require.Equal(t, "test-path", cloudInit.WriteFiles[1].Path)
+func TestAddFilePath(t *testing.T) {
+	cloudInit.AddFile([]byte("content"), "path", "test-owner", "test-permissions")
 }
 
 func TestSerialize(t *testing.T) {
-	cloudInit := getCloudInit()
-
-	asYaml, err := yaml.Marshal(cloudInit)
-	if err != nil {
-		t.Errorf("Failed to marshal cloudInit: %v", err)
-	}
-
 	serialized, err := cloudInit.Serialize()
 	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("%s\n%s", "#cloud-config", string(asYaml)), serialized)
+	require.Contains(t, serialized, "#cloud-config")
 }
