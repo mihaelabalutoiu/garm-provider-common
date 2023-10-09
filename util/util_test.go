@@ -25,7 +25,6 @@ import (
 
 	runnerErrors "github.com/cloudbase/garm-provider-common/errors"
 	"github.com/cloudbase/garm-provider-common/params"
-	"github.com/google/go-github/v55/github"
 	"github.com/stretchr/testify/require"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
@@ -211,10 +210,10 @@ func TestGetTools(t *testing.T) {
 		t.Fatalf("failed to resolve to github os type: %s", err)
 	}
 
-	tools := []*github.RunnerApplicationDownload{
+	tools := []params.RunnerApplicationDownload{
 		{
-			OS:           github.String(ghOS),
-			Architecture: github.String(ghArch),
+			OS:           &ghOS,
+			Architecture: &ghArch,
 		},
 	}
 
